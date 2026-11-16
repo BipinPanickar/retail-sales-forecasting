@@ -1,0 +1,86 @@
+# ---------------------------------------------------------------
+# Central configuration. No absolute paths: everything is relative
+# to the project root.
+# ---------------------------------------------------------------
+project:
+  seed: 42
+
+paths:
+  db: data/raw/retail.db
+  processed_dir: data/processed
+  m5_dir: data/external/m5
+  models_dir: models
+  results_dir: results
+  logs_dir: logs
+
+# ---- Dataset A: US Census retail sales via FRED (monthly, live) ----
+fred:
+  base_url: https://api.stlouisfed.org/fred/series/observations
+  history_start: "1992-01-01"
+  revision_lookback_months: 6      # re-fetch recent months to catch revisions
+  timeout_seconds: 30
+  max_retries: 3
+  # VERIFY these IDs on fred.stlouisfed.org before first run.
+  # Must be NOT seasonally adjusted (NSA) so SARIMA has seasonality to model.
+  series:
+    - id: RSAFSNA          # Retail Trade and Food Services, NSA (verify)
+      name: total_retail_food_nsa
+    - id: RSXFSN           # Retail Trade, NSA (verify)
+      name: total_retail_nsa
+
+# ---- Dataset B: M5 Walmart (daily, static benchmark) ----
+m5:
+  sales_file: sales_train_evaluation.csv   # fallback: sales_train_validation.csv
+  calendar_file: calendar.csv
+  level: total                  # total | state | store
+  target_unit: unit_sales       # M5 gives units, not revenue, unless prices are joined
+
+# ---- Splits (chronological only) ----
+split:
+  train_frac: 0.70
+  val_frac: 0.15                # test = remainder
+
+# ---- Per-dataset modelling settings ----
+datasets:
+  fred_monthly:
+    freq: MS
+    season_length: 12
+    horizon: 12
+    lags: [1, 2, 3, 6, 12]
+    rolling_windows: [3, 6, 12]
+    lstm_lookbacks: [6, 12, 24]
+  m5_daily:
+    freq: D
+    season_length: 7
+    horizon: 28
+    lags: [1, 7, 14, 28]
+    rolling_windows: [7, 14, 28]
+    lstm_lookbacks: [14, 28, 60]
+
+# ---- Models ----
+arima:
+  max_p: 3
+  max_q: 3
+  d_candidates: [0, 1]
+sarima:
+  max_p: 2
+  max_q: 2
+  P_candidates: [0, 1]
+  Q_candidates: [0, 1]
+  D_candidates: [0, 1]
+xgboost:
+  param_grid:
+    n_estimators: [200, 400]
+    max_depth: [3, 5]
+    learning_rate: [0.05, 0.1]
+    subsample: [0.8]
+    colsample_bytree: [0.8]
+lstm:
+  units_1: 64
+  units_2: 32
+  dropout: 0.2
+  dense: 16
+  learning_rate: 0.001
+  batch_size: 32
+  epochs: 100
+  patience: 10
